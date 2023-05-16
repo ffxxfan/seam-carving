@@ -48,16 +48,18 @@ class SeamCarving:
         # mask_map[m][n] == 1 表示 protected_mask；mask_map[m][n] == -1 表示 removal_mask
         mask_map = np.zeros((height, width))
         # 判断 protected_mask 和 removal_mask 是否存在，若存在则更新 mask 矩阵
-        if self.protected_mask_filename != "":
-            mask_map = np.copy(self.get_mask_map(self.protected_mask_filename, mask_map, update_data=1))
-        if self.removal_mask_filename != "":
-            # 若存在需要移除的部分，则先移除 removal_mask 覆盖部分，再将其拓展为原图像大小
-            mask_map = np.copy(self.get_mask_map(self.removal_mask_filename, mask_map, update_data=-1))
-            row_number, col_number = self.image_removal_seam_size(mask_map)
-            self.image_resizing_with_mask(mask_map, row_number, col_number)
-        # 删除 / 插入 seam
-        row_number, col_number = self.image_notRemoval_seam_size()
-        self.image_resizing_without_mask(row_number, col_number)
+        if self.protected_mask_filename == "" and self.removal_mask_filename == "":
+            # 删除 / 插入 seam
+            row_number, col_number = self.image_notRemoval_seam_size()
+            self.image_resizing_without_mask(row_number, col_number)
+        else:
+            if self.protected_mask_filename != "":
+                mask_map = np.copy(self.get_mask_map(self.protected_mask_filename, mask_map, update_data=1))
+            if self.removal_mask_filename != "":
+                # 若存在需要移除的部分，则先移除 removal_mask 覆盖部分，再将其拓展为原图像大小
+                mask_map = np.copy(self.get_mask_map(self.removal_mask_filename, mask_map, update_data=-1))
+                row_number, col_number = self.image_removal_seam_size(mask_map)
+                self.image_resizing_with_mask(mask_map, row_number, col_number)
 
     def image_resizing_with_mask(self, mask_map, row_number, col_number):
         # TODO 带有 mask 的移除，感觉可以和 image_resizing_without_mask 合并
