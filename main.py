@@ -9,6 +9,7 @@ import numpy as np
 import seam_carving
 import matplotlib.pyplot as plt
 
+
 def drew_seam_in_image(image, path):
     image_copy = np.copy(image)
     for row in range(path.size):
@@ -16,6 +17,7 @@ def drew_seam_in_image(image, path):
         image_copy[row, col] = (255, 0, 0)
     plt.imshow(image_copy)
     plt.show()
+
 
 # 按间距中的绿色按钮以运行脚本。
 if __name__ == '__main__':
@@ -35,7 +37,8 @@ if __name__ == '__main__':
     out_width = 512
 
     # 初始化
-    my_seam_carving = seam_carving.SeamCarving(input_filename, output_filename, out_height, out_width, protected_mask, removal_mask)
+    my_seam_carving = seam_carving.SeamCarving(input_filename, output_filename, out_height, out_width, protected_mask,
+                                               removal_mask)
     # # 计算图像能量并打印图像
     # image_read = cv2.imread(input_filename)
     # energy_map = my_seam_carving.image_energy_calculation(np.copy(image_read))
