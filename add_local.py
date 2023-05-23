@@ -36,16 +36,26 @@ class RanctangelWarping:
         # 记录当前最长边界段的起始位置
         self.boundary_begin = 0
         self.boundary_end = 0
+        # 掩盖像素值为 [0, 0, 0] 位置的能量，避免计算最优 seam 时计算到它
+        self.energy_mask_value = 1000000
 
     def add_local(self):
+        """
+        此函数将局部接缝添加到图像，直到它变成矩形。
+
+        Returns:
+          添加接缝的修改后的输出图像，直到它变成矩形图像。
+        """
         # 通过 add_seam 插入像素，直到将输出的图像变为矩形图像，并返回结果
-        while np.sum(self.output_image <= 0) > 0:
-            # 查找 seam
-            seam_found = self.find_seam()
+        while self.has_boundary():
+            # 查找最长边界段
+            self.find_shape_max()
             # 将图像的最长边界段旋转到最右侧
             self.output_image = np.rot90(self.output_image, self.boundary_direction * -1)
             self.image_direction = self.boundary_direction
             self.boundary_direction = self.BOUNDARY_SEGMENT_RIGHT
+            # 查找 seam
+            seam_found = self.find_seam()
             # output_image 中添加 seam
             self.output_image = self.add_seam(seam_found)
             # 将图像旋转回原本方向
@@ -53,27 +63,71 @@ class RanctangelWarping:
             self.image_direction = self.BOUNDARY_SEGMENT_RIGHT
         return self.output_image
 
+    def has_boundary(self):
+        """
+        此函数通过旋转对象并检查右边界来检查对象在任何方向上是否有边界。
+
+        Returns:
+          一个布尔值，指示图像是否有边界。
+        """
+        # 判断是否有边界
+        has_boundaries = False
+        for direction in range(4):
+            if self.has_right_boundary():
+                has_boundaries = True
+            self.output_image = np.rot90(self.output_image, 1)
+        return has_boundaries
+
+    def has_right_boundary(self):
+        """
+        此函数通过遍历行并检查每行的最后一个像素来检查输出图像的右边界是否存在。
+
+        Returns:
+          一个布尔值，指示输出图像的右边界是否存在。如果右边界存在，则函数返回 True，否则返回 False。
+        """
+        # output_image 的长宽
+        height, width = self.output_image.shape[: 2]
+        # 判断 output_image 右边是否有边
+        for row in range(height):
+            if self.output_image[row, width - 1, 0] == 0 \
+                and self.output_image[row, width - 1, 1] == 0 \
+                    and self.output_image[row, width - 1, 2] == 0:
+                return True
+        return False
+
+
     def add_seam(self, seam_path):
+        """
+        该函数通过将接缝右侧的所有元素向右移动并在接缝处插入新的像素值来为图像添加接缝。
+
+        Args:
+          seam_path: `seam_path` 是一个整数列表，表示要添加到图像中的接缝路径。列表中的每个元素代表将添加接缝的行中像素的列索引。
+
+        Returns:
+          插入接缝后更新的输出图像。
+        """
         # 图像的宽
         width = self.output_image.shape[1]
         # 插入 seam，所有 seam 右边的元素都向右移动
         for row in range(self.boundary_begin, self.boundary_end):
-            insert_position = seam_path[row]
-            # 计算插入像素值
-            if insert_position == 0:
-                left_value = self.output_image[row, insert_position]
-            else:
-                left_value = self.output_image[row, insert_position - 1]
-            cur_value = math.ceil(left_value / 2 + self.output_image[row, insert_position] / 2)
-            # seam 右边的元素向右移动
-            for col in range(insert_position, width):
-                next_value = self.output_image[row, col]
-                # 元素右移
-                self.output_image[row, col] = cur_value
-                cur_value = next_value
-                # 若替换元素为 0 则停止右移
-                if next_value <= 0:
-                    break
+            insert_position = math.ceil(seam_path[row - self.boundary_begin])
+            for tier in range(3):
+                # 计算插入像素值
+                if insert_position == 0:
+                    left_value = self.output_image[row, insert_position, tier]
+                else:
+                    left_value = self.output_image[row, insert_position - 1, tier]
+                cur_value = math.ceil(left_value / 2 + self.output_image[row, insert_position, tier] / 2)
+                # cur_value = self.output_image[row, insert_position, tier]
+                # seam 右边的元素向右移动
+                for col in range(insert_position, width):
+                    next_value = self.output_image[row, col, tier]
+                    # 元素右移
+                    self.output_image[row, col, tier] = cur_value
+                    cur_value = next_value
+                    # # 若替换元素为 0 则停止右移
+                    # if next_value <= 0:
+                    #     break
         return self.output_image
 
     def find_seam(self):
@@ -88,6 +142,13 @@ class RanctangelWarping:
         # 计算能量矩阵
         resizing_image = self.output_image[self.boundary_begin: self.boundary_end]
         energy_map = my_seam_carving.energy_map_without_mask(resizing_image)
+        # 将为 [0, 0, 0] 像素大小的位置能量改为 self.energy_mask_value
+        for row in range(energy_map.shape[0]):
+            for col in range(energy_map.shape[1]):
+                if resizing_image[row, col, 0] == 0 \
+                    and resizing_image[row, col, 1] == 0 \
+                        and resizing_image[row, col, 2] == 0:
+                    energy_map[row, col] = self.energy_mask_value
         # 查找最优 seam 路径
         seam_path = my_seam_carving.find_seam(energy_map)
         return seam_path
@@ -111,6 +172,7 @@ class RanctangelWarping:
                 self.boundary_direction = direction
                 boundary_best_begin = boundary_begin
                 boundary_best_end = boundary_end
+                boundary_best_len = boundary_end - boundary_begin
             # 顺时针旋转图像 90 度
             self.output_image = np.rot90(self.output_image, -1)
         # 更新当前最长边界的起始位置
@@ -134,7 +196,8 @@ class RanctangelWarping:
         # 存储当前最长边的长度
         boundary_best_len = 0
         # 计算当前图像最右边最长边界段
-        for row in range(height):
+        row = 0
+        while row < height:
             # 查找边界段的起始位置
             while row < height and np.sum(self.output_image[row, width - 1] > 0) > 0:
                 row = row + 1
@@ -147,5 +210,5 @@ class RanctangelWarping:
             if boundary_end - boundary_begin > boundary_best_len:
                 boundary_best_len = boundary_best_end - boundary_best_begin
                 boundary_best_end = boundary_end
-                boundary_best_begin = boundary_best_begin
+                boundary_best_begin = boundary_begin
         return boundary_best_begin, boundary_best_end
