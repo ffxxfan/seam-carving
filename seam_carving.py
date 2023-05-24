@@ -31,6 +31,9 @@ class SeamCarving:
         # 读取输入图像并将存储和为 np.float64 格式，并将其复制以便后续处理
         self.input_image = cv2.imread(self.input_filename)
         self.output_image = np.copy(self.input_image)
+        # 输入图像的大小
+        self.input_image_height = self.input_image.shape[0]
+        self.input_image_width = self.input_image.shape[1]
         # 常量，用于计算 seam 路径
         # energy_path[m, n] = UP 表示从 [m - 1, n] 进入当前路径
         self.UPPER_RIGHT = 2
@@ -52,6 +55,17 @@ class SeamCarving:
             self.has_mask = False
         else:
             self.has_mask = True
+
+    def image_enlarging(self):
+        """
+        此函数通过先将图像缩小到较小尺寸，然后再将其恢复到原始尺寸来放大图像。
+        """
+        # 将图像尺寸缩小
+        self.image_resizing()
+        # 将图像尺寸放大到原尺寸
+        self.out_height = self.input_image_height
+        self.out_width = self.input_image_width
+        self.image_resizing()
 
     def image_resizing(self):
         """
@@ -182,9 +196,8 @@ class SeamCarving:
           一个元组，其中包含需要删除或插入的行数和列数，以便将输入图像的大小调整为所需的输出大小。
         """
         # 计算需要删除 / 插入的行列数
-        in_height, in_width = self.input_image.shape[: 2]
-        row_number = in_width - self.out_width
-        col_number = in_height - self.out_height
+        row_number = self.input_image_height - self.out_width
+        col_number = self.input_image_width - self.out_height
         return row_number, col_number
 
     def energy_calculation_with_mask(self, energy_map):
