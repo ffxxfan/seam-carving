@@ -212,3 +212,9 @@ class RanctangelWarping:
                 boundary_best_end = boundary_end
                 boundary_best_begin = boundary_begin
         return boundary_best_begin, boundary_best_end
+
+    def save_image(self):
+        """
+        将处理后的图片 self.output_image 输出到文件 self.output_filename
+        """
+        cv2.imwrite(self.output_filename, self.output_image)
