@@ -45,8 +45,8 @@ class SeamCarving:
         self.protected_mask = 1
         self.removal_mask = -1
         # 表示图像保护部分和移除部分的能量
-        self.protected_mask_energy = 1000000000
-        self.removal_mask_energy = -1000000000
+        self.protected_mask_energy = 10000000
+        self.removal_mask_energy = -1000000000000
         # 存储自身的 mask_map
         self.mask_map = np.zeros(self.input_image.shape[: 2])
         # 存储自身的
@@ -148,8 +148,15 @@ class SeamCarving:
         resizing_image = np.copy(self.output_image)
         # 记录删除的 seam 数量
         seam_number = 0
+        # 记录特定次数
+        count = 0
+        # 记录上一次需删除的以上点个数
+        removal_count = np.sum(self.mask_map < 0)
         # 当存在需要删除的元素时，删除 seam
-        while np.sum(self.mask_map < 0) > 0:
+        # 有的异常点难以找到（可能是移出物体的奇异点），为更好的提升效率，可以将 ‘异常点个数不变的次数’ >= '特定次数' 时默认异常点已经删除
+        # 这里的特定次数设为 15
+        while removal_count > 0 and count < 15:
+            # 查找能量图和 seam
             energy_map = self.energy_map_without_mask(resizing_image)
             energy_map = self.energy_calculation_with_mask(energy_map)
             seam_found = self.find_seam(energy_map)
@@ -157,7 +164,18 @@ class SeamCarving:
             resizing_image = self.delete_seams(seam_found, resizing_image)
             self.mask_map = self.delete_mask_map(seam_found, self.mask_map)
             seam_number = seam_number + 1
+            # 判断与上次需删除的个数是否相同，相同则 '特定次数' count + 1，不同则更新 'removal_count'
+            removal_count_new = np.sum(self.mask_map)
+            if math.isclose(removal_count_new, removal_count):
+                count = count + 1
+            else:
+                removal_count = removal_count_new
         self.output_image = np.copy(resizing_image)
+        # 存储修改后图像每个像素对应的列位置
+        image_location_row = np.arange(0, resizing_image.shape[1], 1)
+        image_location = np.empty([resizing_image.shape[0], resizing_image.shape[1]])
+        for row in range(image_location.shape[0]):
+            image_location[row] = image_location_row
         # 存储插入的 seam 路径
         seams_path = np.zeros((seam_number, self.mask_map.shape[0]))
         # 恢复原图像尺寸
@@ -166,10 +184,11 @@ class SeamCarving:
             energy_map = self.energy_map_without_mask(resizing_image)
             energy_map = self.energy_calculation_with_mask(energy_map)
             seam_found = self.find_seam(energy_map)
-            seams_path[dummy] = seam_found
             # 删除 seam
             resizing_image = self.delete_seams(seam_found, resizing_image)
             self.mask_map = self.delete_mask_map(seam_found, self.mask_map)
+            seams_path[dummy] = self.get_image_location_seam(seam_found, image_location)
+            image_location = np.copy(self.delete_mask_map(seam_found, image_location))
         # 对每列进行排序
         seams_path = np.sort(seams_path, axis=0)
         # 图像插入并拷贝到 output_image
@@ -196,8 +215,8 @@ class SeamCarving:
           一个元组，其中包含需要删除或插入的行数和列数，以便将输入图像的大小调整为所需的输出大小。
         """
         # 计算需要删除 / 插入的行列数
-        row_number = self.input_image_height - self.out_width
-        col_number = self.input_image_width - self.out_height
+        row_number = self.output_image.shape[1] - self.out_width
+        col_number = self.output_image.shape[0] - self.out_height
         return row_number, col_number
 
     def energy_calculation_with_mask(self, energy_map):
@@ -267,19 +286,22 @@ class SeamCarving:
         # image_state = np.zeros((height, width))
         # 待修改的图像
         image_resizing = np.copy(self.output_image)
+        # 存储修改后图像每个像素对应的列位置
+        image_location_row = np.arange(0, image_resizing.shape[1], 1)
+        image_location = np.empty([image_resizing.shape[0], image_resizing.shape[1]])
+        for row in range(image_location.shape[0]):
+            image_location[row] = image_location_row
         # # 待修改的 mask_map
         # mask_map_resizing = np.copy(self.mask_map)
         # 计算列最优 seam，并修改目标图像 out_image　从　m＊ｎ　到　Ｍ＊n 或 m * N
         for dummy in range(abs(seam_number)):
             # 计算能量图
             energy_map = self.energy_map_without_mask(image_resizing)
-            # if self.has_mask:
-            #     energy_map = self.energy_calculation_with_mask(mask_map_resizing, energy_map)
+            # 查找 seam 并记录 ‘相对原图 seam 路径’
             seam_found = self.find_seam(energy_map)
             image_resizing = np.copy(self.delete_seams(seam_found, image_resizing))
-            # if self.has_mask:
-            #     mask_map_resizing = self.delete_seams(seam_found, mask_map_resizing)
-            seam_paths[dummy] = seam_found
+            seam_paths[dummy] = self.get_image_location_seam(seam_found, image_location)
+            image_location = np.copy(self.delete_mask_map(seam_found, image_location))
         # 更新图像
         if seam_number >= 0:
             # 若删除 seam 则直接复制删除后的图像　
@@ -293,6 +315,23 @@ class SeamCarving:
             # if self.has_mask:
                 # self.mask_map = self.insert_seams(seam_paths, mask_map_resizing)
 
+    def get_image_location_seam(self, seam_found, image_location):
+        """
+        此函数将修改图像中接缝的位置转换为其在原始图像中的位置。
+
+        Args:
+          seam_found: 一个 numpy 数组，包含在修改后的图像中形成接缝的像素的列索引。
+          image_location: 它是一个二维列表，存储每个像素在原始图像中的位置。列表中的每个元素代表图像中的一行，每一行包含该行中像素的列索引。例如，如果原始图像是 3x3 图像，
+
+        Returns:
+          seam_found 列表，其值被修改为表示接缝在原始图像中的位置，而不是修改后的图像。
+        """
+        # 按行将找到的 ‘相对于修改后图像的位置’ 将其修正为 ‘相对于原图的位置，以便后续 seam 插入找到正确的位置’
+        seam_found_to_find_real = np.empty(seam_found.size)
+        for row in range(seam_found.size):
+            col = seam_found[row]
+            seam_found_to_find_real[row] = image_location[row][col]
+        return seam_found
 
     def reachable_map(self, mask_map):
         """
