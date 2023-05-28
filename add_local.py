@@ -12,7 +12,10 @@ import numpy as np
 import seam_carving
 
 
-class RanctangelWarping:
+class RectangleWarping:
+    """  Rectangling Panoramic Images via Warping 论文部分复现
+    完成论文中第一阶段，即使用 add seam 方式实现全景图的 local warping 的功能。
+    """
     def __init__(self, input_filename, output_filename):
         self.output_filename = output_filename
         self.input_filename = input_filename

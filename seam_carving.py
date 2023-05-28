@@ -8,8 +8,17 @@ import math
 import cv2
 import numpy as np
 
+
 class SeamCarving:
-    def __init__(self, input_filename, output_filename, out_height, out_width, protected_mask_filename='', removal_mask_filename=''):
+    """ seam-carving 论文复现
+
+    实现图像基于内容的放大功能
+    实现图像基于内容的缩小功能
+    实现图像内容放大功能
+    通过修改能量图的方式实现物体的保护和移除功能
+    """
+    def __init__(self, input_filename, output_filename, out_height, out_width, protected_mask_filename='',
+                 removal_mask_filename=''):
         """
         此函数为计算接缝路径的图像处理算法初始化参数和常量。
 
@@ -220,8 +229,18 @@ class SeamCarving:
         return row_number, col_number
 
     def energy_calculation_with_mask(self, energy_map):
+        """
+        此函数计算图像的能量，同时考虑到受保护和移除的掩模。
+
+        Args:
+          energy_map: 能量图是一个二维 numpy 数组，表示图像中每个像素的能量值。能量值通常使用基于梯度的方法（例如 Sobel 算子）计算，并表示每个像素的梯度大小。能量图用于缝合雕刻
+
+        Returns:
+          根据掩模图修改被保护或标记为移除的像素的能量值后的能量图。
+        """
         # 能量图的长宽
         height, width = energy_map.shape[: 2]
+        # 将保护像素和移除像素的能量置为设定能量 'self.protected_mask_energy' 或 'self.removal_mask_energy'
         for row in range(height):
             for col in range(width):
                 if self.mask_map[row, col] == self.protected_mask:
@@ -250,9 +269,6 @@ class SeamCarving:
         #             if mask_map[row, col] == self.removal_mask:
         #                 mask_map[row, col] = mask_map[row, col] * -1
         #             # 更新当前元素的值
-
-
-
 
     def image_resizing_without_mask(self, row_number, col_number):
         """
@@ -313,7 +329,7 @@ class SeamCarving:
             # 图像插入并拷贝到 output_image
             self.output_image = np.copy(self.insert_seams(seam_paths, self.output_image))
             # if self.has_mask:
-                # self.mask_map = self.insert_seams(seam_paths, mask_map_resizing)
+            # self.mask_map = self.insert_seams(seam_paths, mask_map_resizing)
 
     def get_image_location_seam(self, seam_found, image_location):
         """
@@ -347,13 +363,16 @@ class SeamCarving:
             for col in range(mask_map.shape[1]):
                 if mask_map[row, col] != self.removal_mask:
                     if col == 0:
-                        mask_map = min(max(mask_map[row - 1, col], 0), max(mask_map[row - 1, col + 1], 0)) + mask_map[row, col]
+                        mask_map = min(max(mask_map[row - 1, col], 0), max(mask_map[row - 1, col + 1], 0)) + mask_map[
+                            row, col]
                     elif col == mask_map.shape[1] - 1:
-                        mask_map = min(max(mask_map[row - 1, col], 0), max(mask_map[row - 1, col - 1], 0)) + mask_map[row, col]
+                        mask_map = min(max(mask_map[row - 1, col], 0), max(mask_map[row - 1, col - 1], 0)) + mask_map[
+                            row, col]
                     else:
-                        mask_map = min(max(mask_map[row - 1, col], 0), max(mask_map[row - 1, col + 1], 0), max(mask_map[row - 1, col + 1], 0), max(mask_map[row - 1, col - 1], 0)) + mask_map[row, col]
+                        mask_map = min(max(mask_map[row - 1, col], 0), max(mask_map[row - 1, col + 1], 0),
+                                       max(mask_map[row - 1, col + 1], 0), max(mask_map[row - 1, col - 1], 0)) + \
+                                   mask_map[row, col]
         return mask_map
-
 
     def energy_map_without_mask(self, resizing_image):
         """
@@ -366,7 +385,6 @@ class SeamCarving:
           在将输入图像分成蓝色、绿色和红色通道并对每个通道应用 Scharr 算子后，根据输入图像计算的能量图。能量图是每个通道的水平和垂直梯度的绝对值之和。
         """
         b, g, r = cv2.split(resizing_image)
-        # energy_b = np.absolute(cv2.Scharr(b, cv2.CV_64F, 1, 0))
         energy_b = np.absolute(cv2.Scharr(b, cv2.CV_64F, 1, 0)) + np.absolute(cv2.Scharr(b, cv2.CV_64F, 0, 1))
         energy_g = np.absolute(cv2.Scharr(b, cv2.CV_64F, 1, 0)) + np.absolute(cv2.Scharr(b, cv2.CV_64F, 0, 1))
         energy_r = np.absolute(cv2.Scharr(b, cv2.CV_64F, 1, 0)) + np.absolute(cv2.Scharr(b, cv2.CV_64F, 0, 1))
@@ -406,10 +424,12 @@ class SeamCarving:
                         energy_map[row, col] = energy_map[row, col] + energy_map[row - 1, col]
                         energy_path[row, col] = self.UP
                 else:
-                    if energy_map[row - 1, col] <= energy_map[row - 1, col - 1] and energy_map[row - 1, col] <= energy_map[row - 1, col + 1]:
+                    if energy_map[row - 1, col] <= energy_map[row - 1, col - 1] and energy_map[row - 1, col] <= \
+                            energy_map[row - 1, col + 1]:
                         energy_map[row, col] = energy_map[row, col] + energy_map[row - 1, col]
                         energy_path[row, col] = self.UP
-                    elif energy_map[row - 1, col - 1] <= energy_map[row - 1, col] and energy_map[row - 1, col - 1] <= energy_map[row - 1, col + 1]:
+                    elif energy_map[row - 1, col - 1] <= energy_map[row - 1, col] and energy_map[row - 1, col - 1] <= \
+                            energy_map[row - 1, col + 1]:
                         energy_map[row, col] = energy_map[row, col] + energy_map[row - 1, col - 1]
                         energy_path[row, col] = self.UPPER_LEFT
                     else:
@@ -489,7 +509,8 @@ class SeamCarving:
                     right_pixel_values = image_resizing[col, insert_pixel_position, piles]
                     insert_pixel_values = math.ceil(left_pixel_values / 2 + right_pixel_values / 2)
                     # 插入像素
-                    image_resizing_row = np.insert(image_resizing_row, math.ceil(seams_found[row][col]), values=insert_pixel_values)
+                    image_resizing_row = np.insert(image_resizing_row, math.ceil(seams_found[row][col]),
+                                                   values=insert_pixel_values)
                 # 更新图像行
                 output_image_new[col, :, piles] = np.copy(image_resizing_row)
         # 返回插入所有 seam 后的图像
