@@ -79,7 +79,8 @@
   # 保存处理后的图像
   my_seam_carving.save_image()
   ```
-  > 跑的有点慢，之前跑出来的图片不小心删掉了，下次有空的时候再添加
+  
+  ![humanAndDog_removalDog](https://github.com/ffxxfan/seam-carving/blob/master/images/readme/humanAndDog_removalDog.jpg)
 * 不规则图像扩展为矩形（最好为 *.png* 格式）
 
   ```python
