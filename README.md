@@ -85,7 +85,7 @@
 
   ```python
   # 将非矩形全景图还原为矩形
-  my_add_local = add_local.RanctangelWarping(input_filename, output_filename)
+  my_add_local = add_local.RectangleWarping(input_filename, output_filename)
   my_add_local.add_local()
   # 保存处理后的图像
   my_add_local.save_image()
