@@ -81,7 +81,7 @@
   ```
   
   ![humanAndDog_removalDog](https://github.com/ffxxfan/seam-carving/blob/master/images/readme/humanAndDog_removalDog.jpg)
-* 不规则图像扩展为矩形（最好为 *.png* 格式）
+* 不规则图像扩展为矩形
 
   ```python
   # 将非矩形全景图还原为矩形
